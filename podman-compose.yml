@@ -1,0 +1,91 @@
+version: "3.9"
+
+services:
+  # ===== Laravel / FrankenPHP App =====
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: gallery-pwl-app
+    ports:
+      - "8765:8765"      # akses Laravel dari host
+    volumes:
+      - .:/app:Z         # project mount
+    depends_on:
+      - db
+      - minio
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_KEY: ${APP_KEY}
+      APP_DEBUG: ${APP_DEBUG}
+      APP_URL: ${APP_URL}
+      APP_LOCALE: ${APP_LOCALE}
+      APP_FALLBACK_LOCALE: ${APP_FALLBACK_LOCALE}
+      APP_FAKER_LOCALE: ${APP_FAKER_LOCALE}
+      APP_MAINTENANCE_DRIVER: ${APP_MAINTENANCE_DRIVER}
+      VAL_KEY: ${VAL_KEY}
+    networks:
+      gallery-net:
+        aliases:
+          - app
+
+  # ===== PostgreSQL Database =====
+  db:
+    image: postgres:17
+    container_name: gallery-pwl-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gallery_pwl}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-newpassword}
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data:Z
+    networks:
+      gallery-net:
+        aliases:
+          - gallery-pwl-db
+          - db
+
+  # ===== MinIO Object Storage =====
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9900:9000"  # API
+      - "9901:9001"  # Console GUI
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - gallery-pwl_minio_data:/data:Z
+    networks:
+      gallery-net:
+        aliases:
+          - minio
+
+  # ===== Adminer Database Management =====
+  adminer:
+    image: adminer:latest
+    container_name: gallery-pwl-adminer
+    ports:
+      - "8888:8080"
+    depends_on:
+      - db
+    networks:
+      gallery-net:
+        aliases:
+          - adminer
+
+# ===== Volumes =====
+volumes:
+  pgdata:
+  gallery-pwl_minio_data:
+
+# ===== Network =====
+networks:
+  gallery-net:
+    driver: bridge
